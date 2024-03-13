@@ -1,5 +1,5 @@
+scipy
 transformers
-seqeval
-boto3
-pytorch-crf==0.7.2
-pytorch_pretrained_bert==0.4.0
+datasets
+nltk
+accelerate
