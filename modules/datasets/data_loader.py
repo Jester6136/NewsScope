@@ -4,10 +4,10 @@ from torch.utils.data import DataLoader
 import torch
 import numpy as np
 from nltk import word_tokenize
-
-tokenizer = AutoTokenizer.from_pretrained("xlm-roberta-large",
-                                          cache_dir='cache',
-                                         )
+import nltk
+nltk.download('punkt')
+model_path = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
+tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 
 def compute_metrics(eval_pred):
@@ -132,22 +132,27 @@ def tokenize_function(example):
     }
 
 
-def get_dataloader(train_path, valid_path, batch_size=2, num_proc=10):
+def get_dataloader(train_path, valid_path, test_path, batch_size=2, num_proc=10):
     train_set = datasets.load_from_disk(train_path)
     valid_set = datasets.load_from_disk(valid_path)
+    test_set = datasets.load_from_disk(test_path)
     print("Train set: ", len(train_set))
     print("Valid set: ", len(valid_set))
+    print("Test set: ", len(test_set))
     # unique_tags = set(tag for doc in tags for tag in train_set)
     train_set = train_set.shuffle().map(tokenize_function, batched=False, num_proc=num_proc).filter(
         lambda example: example['valid'], num_proc=num_proc)
     valid_set = valid_set.map(tokenize_function, batched=False, num_proc=num_proc).filter(
+        lambda example: example['valid'], num_proc=num_proc)
+    test_set = test_set.map(tokenize_function, batched=False, num_proc=num_proc).filter(
         lambda example: example['valid'], num_proc=num_proc)
     # train_set = train_set.sort('src_ids_len')
     # valid_set = valid_set.sort('src_ids_len')
 
     print("Train set: ", len(train_set))
     print("Valid set: ", len(valid_set))
-    return train_set, valid_set
+    print("Test set: ", len(test_set))
+    return train_set, valid_set, test_set
 
 
 def build_target_dictionary():

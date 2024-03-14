@@ -9,14 +9,19 @@ import os
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 if __name__ == "__main__":
-    model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
+    # # none
+    # model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
+
+    #trained
+    model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/v1/checkpoint-1176"
     model = MRCQuestionAnswering.from_pretrained(model_path)
     print(model)
     print(model.config)
 
-    train_dataset, valid_dataset = data_loader.get_dataloader(
+    train_dataset, valid_dataset, test_dataset = data_loader.get_dataloader(
         train_path='data/data_processed/train.dataset',
-        valid_path='data/data_processed/valid.dataset'
+        valid_path='data/data_processed/valid.dataset',
+        test_path='data/data_processed/test.dataset',
     )
 
     training_args = TrainingArguments("cache/v1",
@@ -49,10 +54,12 @@ if __name__ == "__main__":
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
+        eval_dataset=test_dataset,
         data_collator=data_loader.data_collator,
         compute_metrics=data_loader.compute_metrics
     )
 
-    trainer.train()
+    # Evaluate the model
+    results = trainer.evaluate()
+
+    print(results)

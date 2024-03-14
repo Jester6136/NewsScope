@@ -7,6 +7,8 @@ import pandas as pd
 from nltk import word_tokenize as lib_tokenizer
 from modules.datasets.patterns import TRIGGER_GENERATE,SUBJECT_GENERATE,OBJECT_GENERATE,TIME_GENERATE,PLACE_GENERATE
 import argparse
+import nltk
+nltk.download('punkt')
 
 def convert_to_squad(file_path):
     raw_data = []
