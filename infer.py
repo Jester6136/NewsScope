@@ -128,8 +128,8 @@ def demo_sys(context,tokenizer,trigger_o = None):
         Model_infered_Location = qa_mrc(Location_q, context, tokenizer)["answer"]
 
         Trigger_r = 'Action: ' + trigger
-        Object_r = 'Chủ thể: ' + Model_infered_Object
-        Subject_r = 'Khách thể: ' + Model_infered_Subject
+        Object_r = 'Khách thể: ' + Model_infered_Object
+        Subject_r = 'Chủ thể: ' + Model_infered_Subject
         Time_r = 'Thời gian: ' + Model_infered_Time
         Location_r = 'Địa điểm: ' + Model_infered_Location
 
@@ -152,7 +152,8 @@ if __name__ == "__main__":
     #                                                             answer['score_start'],
     #                                                             answer['score_end']))
 
-    text = """Điện Kremlin: Việc mở rộng BRICS sẽ giúp nhóm lớn mạnh hơn. Người phát ngôn Điện Kremlin Dmitry Peskov. (Ảnh: AFP\/TTXVN) Theo hãng tin TASS, ngày 3\/8, người phát ngôn Điện Kremlin Dmitry Peskov cho biết Nga đánh giá việc mở rộng Nhóm các nền kinh tế mới nổi (BRICS) sẽ giúp nhóm lớn mạnh hơn, song khẳng định Nga không đưa ra quan điểm về việc kết nạp một số quốc gia mới trước khi tất cả các nước thành viên thảo luận vấn đề này. Trả lời câu hỏi của báo giới liên quan khả năng Argentina cùng Saudi Arabia và Các Tiểu vương quốc Arab thống nhất (UAE) gia nhập BRICS, ông Peskov nêu rõ Nga tin tưởng rằng dưới bất kỳ hình thức nào, việc mở rộng BRICS sẽ góp phần vào sự phát triển và lớn mạnh hơn nữa của khối. Người phát ngôn Điện Kremlin cho biết thêm Nga có các mối quan hệ mang tính xây dựng với ba quốc gia còn lại trong nhóm, song vẫn còn quá sớm để đề cập các quốc gia ứng cử viên cụ thể trước khi chủ đề này được thảo luận tại Hội nghị Thượng đỉnh BRICS ở Nam Phi vào ngày 22-24\/8 tới. [Hội nghị thượng đỉnh BRICS ưu tiên vấn đề kết nạp thêm thành viên] Trước đó, Đại sứ lưu động của Nam Phi về châu Á và BRICS Anil Sooklal cho biết hiện có khoảng 30 quốc gia quan tâm đến việc gia nhập BRICS."""
+    # text = """Điện Kremlin: Việc mở rộng BRICS sẽ giúp nhóm lớn mạnh hơn. Người phát ngôn Điện Kremlin Dmitry Peskov. (Ảnh: AFP\/TTXVN) Theo hãng tin TASS, ngày 3\/8, người phát ngôn Điện Kremlin Dmitry Peskov cho biết Nga đánh giá việc mở rộng Nhóm các nền kinh tế mới nổi (BRICS) sẽ giúp nhóm lớn mạnh hơn, song khẳng định Nga không đưa ra quan điểm về việc kết nạp một số quốc gia mới trước khi tất cả các nước thành viên thảo luận vấn đề này. Trả lời câu hỏi của báo giới liên quan khả năng Argentina cùng Saudi Arabia và Các Tiểu vương quốc Arab thống nhất (UAE) gia nhập BRICS, ông Peskov nêu rõ Nga tin tưởng rằng dưới bất kỳ hình thức nào, việc mở rộng BRICS sẽ góp phần vào sự phát triển và lớn mạnh hơn nữa của khối. Người phát ngôn Điện Kremlin cho biết thêm Nga có các mối quan hệ mang tính xây dựng với ba quốc gia còn lại trong nhóm, song vẫn còn quá sớm để đề cập các quốc gia ứng cử viên cụ thể trước khi chủ đề này được thảo luận tại Hội nghị Thượng đỉnh BRICS ở Nam Phi vào ngày 22-24\/8 tới. [Hội nghị thượng đỉnh BRICS ưu tiên vấn đề kết nạp thêm thành viên] Trước đó, Đại sứ lưu động của Nam Phi về châu Á và BRICS Anil Sooklal cho biết hiện có khoảng 30 quốc gia quan tâm đến việc gia nhập BRICS."""
+    text = """Lạm phát của Lào liên tục giảm, nhưng vẫn ở mức cao trong khu vực. Toàn cảnh thành phố Pakse, tỉnh Champasak - trung tâm kinh tế lớn của Lào. (Ảnh: Đỗ Bá Thành/TTXVN) Cục Thống kê Lào ngày 1/8 cho biết tỷ lệ lạm phát của nước này đã giảm 27,8% trong tháng Bảy vừa qua, tiếp nối đà giảm 38,86% của tháng 5/2023 và 28,8% của tháng Sáu. Tuy nhiên, tính chung trong khu vực, Lào vẫn là một trong những quốc gia có tỷ lệ lạm phát cao nhất. Theo báo cáo của Cục Thống kê Lào, trong sáu tháng qua, chỉ số giá tiêu dùng (CPI) của nước này đã tăng 38,06%. Nguyên nhân chủ yếu là do sự mất giá của đồng nội tệ (đồng kip)."""
     items = demo_sys(context = text, tokenizer = tokenizer)
     for item in items:
         print(item)
