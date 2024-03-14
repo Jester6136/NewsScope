@@ -98,8 +98,8 @@ def extract_answer(inputs, outputs, tokenizer):
 
 def qa_mrc(question,context,tokenizer):
     QA_input = {
-        'question': "The action ?",
-        'context': "Điện Kremlin: Việc mở rộng BRICS sẽ giúp nhóm lớn mạnh hơn. Người phát ngôn Điện Kremlin Dmitry Peskov. (Ảnh: AFP\/TTXVN) Theo hãng tin TASS, ngày 3\/8, người phát ngôn Điện Kremlin Dmitry Peskov cho biết Nga đánh giá việc mở rộng Nhóm các nền kinh tế mới nổi (BRICS) sẽ giúp nhóm lớn mạnh hơn, song khẳng định Nga không đưa ra quan điểm về việc kết nạp một số quốc gia mới trước khi tất cả các nước thành viên thảo luận vấn đề này. Trả lời câu hỏi của báo giới liên quan khả năng Argentina cùng Saudi Arabia và Các Tiểu vương quốc Arab thống nhất (UAE) gia nhập BRICS, ông Peskov nêu rõ Nga tin tưởng rằng dưới bất kỳ hình thức nào, việc mở rộng BRICS sẽ góp phần vào sự phát triển và lớn mạnh hơn nữa của khối. Người phát ngôn Điện Kremlin cho biết thêm Nga có các mối quan hệ mang tính xây dựng với ba quốc gia còn lại trong nhóm, song vẫn còn quá sớm để đề cập các quốc gia ứng cử viên cụ thể trước khi chủ đề này được thảo luận tại Hội nghị Thượng đỉnh BRICS ở Nam Phi vào ngày 22-24\/8 tới. [Hội nghị thượng đỉnh BRICS ưu tiên vấn đề kết nạp thêm thành viên] Trước đó, Đại sứ lưu động của Nam Phi về châu Á và BRICS Anil Sooklal cho biết hiện có khoảng 30 quốc gia quan tâm đến việc gia nhập BRICS."
+        'question': question,
+        'context': context
     }
     inputs = [tokenize_function(QA_input,tokenizer)]
     inputs_ids = data_collator(inputs,tokenizer)
@@ -109,7 +109,7 @@ def qa_mrc(question,context,tokenizer):
     # answer be like:answer['answer'],answer['score_start'],answer['score_end'])
     return (answer)
 
-def demo_sys(context,trigger_o,tokenizer):
+def demo_sys(context,tokenizer,trigger_o = None):
     if not trigger_o:
         trigger = qa_mrc("What is the main action in the text?", context, tokenizer)["answer"]
     else:
@@ -127,12 +127,13 @@ def demo_sys(context,trigger_o,tokenizer):
         Model_infered_Time = qa_mrc(Time_q, context, tokenizer)["answer"]
         Model_infered_Location = qa_mrc(Location_q, context, tokenizer)["answer"]
 
+        Trigger_r = 'Action: ' + trigger
         Object_r = 'Chủ thể: ' + Model_infered_Object
         Subject_r = 'Khách thể: ' + Model_infered_Subject
         Time_r = 'Thời gian: ' + Model_infered_Time
         Location_r = 'Địa điểm: ' + Model_infered_Location
 
-        return [trigger, Object_r, Subject_r, Time_r, Location_r]
+        return [Subject_r, Trigger_r, Object_r, Time_r, Location_r]
 if __name__ == "__main__":
     model_checkpoint = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/v1/checkpoint-1680"
     tokenizer_path = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
