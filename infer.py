@@ -31,8 +31,8 @@ def tokenize_function(example, tokenizer):
         "valid": valid
     }
 
-
 def data_collator(samples, tokenizer):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if len(samples) == 0:
         return {}
 
@@ -54,11 +54,11 @@ def data_collator(samples, tokenizer):
             copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
         return res
 
-    input_ids = collate_tokens([torch.tensor(item['input_ids']) for item in samples], pad_idx=tokenizer.pad_token_id)
-    attention_mask = torch.zeros_like(input_ids)
+    input_ids = collate_tokens([torch.tensor(item['input_ids']).to(device) for item in samples], pad_idx=tokenizer.pad_token_id)
+    attention_mask = torch.zeros_like(input_ids).to(device)
     for i in range(len(samples)):
         attention_mask[i][:len(samples[i]['input_ids'])] = 1
-    words_lengths = collate_tokens([torch.tensor(item['words_lengths']) for item in samples], pad_idx=0)
+    words_lengths = collate_tokens([torch.tensor(item['words_lengths']).to(device) for item in samples], pad_idx=0)
 
     batch_samples = {
         'input_ids': input_ids,
@@ -67,7 +67,6 @@ def data_collator(samples, tokenizer):
     }
 
     return batch_samples
-
 
 def extract_answer(inputs, outputs, tokenizer):
     plain_result = []
@@ -96,6 +95,7 @@ def extract_answer(inputs, outputs, tokenizer):
         })
     return plain_result
 
+
 def qa_mrc(question,context,tokenizer):
     QA_input = {
         'question': question,
@@ -103,6 +103,7 @@ def qa_mrc(question,context,tokenizer):
     }
     inputs = [tokenize_function(QA_input,tokenizer)]
     inputs_ids = data_collator(inputs,tokenizer)
+    inputs_ids = {key: value.to(device) for key, value in inputs_ids.items()}
     outputs = model(**inputs_ids)
     answer = extract_answer(inputs, outputs, tokenizer)[0]
 
@@ -134,12 +135,15 @@ def demo_sys(context,tokenizer,trigger_o = None):
         Location_r = 'Địa điểm: ' + Model_infered_Location
 
         return [Subject_r, Trigger_r, Object_r, Time_r, Location_r]
+        
 if __name__ == "__main__":
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_checkpoint = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/v1/checkpoint-1680"
     tokenizer_path = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
     model = MRCQuestionAnswering.from_pretrained(model_checkpoint)
-
+    model.to(device)
     # QA_input = {
     #     'question': "The action ?",
     #     'context': "Điện Kremlin: Việc mở rộng BRICS sẽ giúp nhóm lớn mạnh hơn. Người phát ngôn Điện Kremlin Dmitry Peskov. (Ảnh: AFP\/TTXVN) Theo hãng tin TASS, ngày 3\/8, người phát ngôn Điện Kremlin Dmitry Peskov cho biết Nga đánh giá việc mở rộng Nhóm các nền kinh tế mới nổi (BRICS) sẽ giúp nhóm lớn mạnh hơn, song khẳng định Nga không đưa ra quan điểm về việc kết nạp một số quốc gia mới trước khi tất cả các nước thành viên thảo luận vấn đề này. Trả lời câu hỏi của báo giới liên quan khả năng Argentina cùng Saudi Arabia và Các Tiểu vương quốc Arab thống nhất (UAE) gia nhập BRICS, ông Peskov nêu rõ Nga tin tưởng rằng dưới bất kỳ hình thức nào, việc mở rộng BRICS sẽ góp phần vào sự phát triển và lớn mạnh hơn nữa của khối. Người phát ngôn Điện Kremlin cho biết thêm Nga có các mối quan hệ mang tính xây dựng với ba quốc gia còn lại trong nhóm, song vẫn còn quá sớm để đề cập các quốc gia ứng cử viên cụ thể trước khi chủ đề này được thảo luận tại Hội nghị Thượng đỉnh BRICS ở Nam Phi vào ngày 22-24\/8 tới. [Hội nghị thượng đỉnh BRICS ưu tiên vấn đề kết nạp thêm thành viên] Trước đó, Đại sứ lưu động của Nam Phi về châu Á và BRICS Anil Sooklal cho biết hiện có khoảng 30 quốc gia quan tâm đến việc gia nhập BRICS."
@@ -153,7 +157,7 @@ if __name__ == "__main__":
     #                                                             answer['score_end']))
 
     # text = """Điện Kremlin: Việc mở rộng BRICS sẽ giúp nhóm lớn mạnh hơn. Người phát ngôn Điện Kremlin Dmitry Peskov. (Ảnh: AFP\/TTXVN) Theo hãng tin TASS, ngày 3\/8, người phát ngôn Điện Kremlin Dmitry Peskov cho biết Nga đánh giá việc mở rộng Nhóm các nền kinh tế mới nổi (BRICS) sẽ giúp nhóm lớn mạnh hơn, song khẳng định Nga không đưa ra quan điểm về việc kết nạp một số quốc gia mới trước khi tất cả các nước thành viên thảo luận vấn đề này. Trả lời câu hỏi của báo giới liên quan khả năng Argentina cùng Saudi Arabia và Các Tiểu vương quốc Arab thống nhất (UAE) gia nhập BRICS, ông Peskov nêu rõ Nga tin tưởng rằng dưới bất kỳ hình thức nào, việc mở rộng BRICS sẽ góp phần vào sự phát triển và lớn mạnh hơn nữa của khối. Người phát ngôn Điện Kremlin cho biết thêm Nga có các mối quan hệ mang tính xây dựng với ba quốc gia còn lại trong nhóm, song vẫn còn quá sớm để đề cập các quốc gia ứng cử viên cụ thể trước khi chủ đề này được thảo luận tại Hội nghị Thượng đỉnh BRICS ở Nam Phi vào ngày 22-24\/8 tới. [Hội nghị thượng đỉnh BRICS ưu tiên vấn đề kết nạp thêm thành viên] Trước đó, Đại sứ lưu động của Nam Phi về châu Á và BRICS Anil Sooklal cho biết hiện có khoảng 30 quốc gia quan tâm đến việc gia nhập BRICS."""
-    text = """Lạm phát của Lào liên tục giảm, nhưng vẫn ở mức cao trong khu vực. Toàn cảnh thành phố Pakse, tỉnh Champasak - trung tâm kinh tế lớn của Lào. (Ảnh: Đỗ Bá Thành/TTXVN) Cục Thống kê Lào ngày 1/8 cho biết tỷ lệ lạm phát của nước này đã giảm 27,8% trong tháng Bảy vừa qua, tiếp nối đà giảm 38,86% của tháng 5/2023 và 28,8% của tháng Sáu. Tuy nhiên, tính chung trong khu vực, Lào vẫn là một trong những quốc gia có tỷ lệ lạm phát cao nhất. Theo báo cáo của Cục Thống kê Lào, trong sáu tháng qua, chỉ số giá tiêu dùng (CPI) của nước này đã tăng 38,06%. Nguyên nhân chủ yếu là do sự mất giá của đồng nội tệ (đồng kip)."""
+    text = """Canada công bố kế hoạch loại bỏ trợ cấp cho nhiên liệu hóa thạch. Khí thải phát ra từ một nhà máy lọc dầu ở Fort McMurray, Canada. ( Ảnh: AFP/TTXVN) Ngày 24/7, Canada đã công bố kế hoạch loại bỏ các khoản trợ cấp cho nhiên liệu hóa thạch và trở thành quốc gia đầu tiên trong Nhóm các nền kinh tế phát triển và mới nổi hàng đầu thế giới (G20) thực hiện cam kết năm 2009 nhằm hợp lý hóa và loại bỏ trợ cấp đối với khu vực này. Theo Bộ trưởng Mội trường và Biến đổi khí hậu Steven Guilbeault, các khoản trợ cấp này khuyến khích tiêu dùng lãng phí, làm giảm an ninh năng lượng, cản trở đầu tư vào năng lượng sạch và làm giảm nỗ lực đối phó với biến đổi khí hậu. Ông này khẳng định Canada đang loại bỏ các khoản trợ cấp để sản xuất nhiên liệu hóa thạch ở nước này, ngoại trừ những khoản trợ cấp đó là nhằm giảm lượng khí thải carbon của chính khu vực này. [Công nghệ thu giữ CO2 không thể là "đèn xanh" cho nhiên liệu hóa thạch] Kế hoạch này sẽ áp dụng bằng các biện pháp thuế và phi thuế hiện nay, nhưng Chính phủ chưa hủy bỏ các thỏa thuận trợ cấp nhiều năm đang được thực hiện."""
     items = demo_sys(context = text, tokenizer = tokenizer)
     for item in items:
         print(item)
