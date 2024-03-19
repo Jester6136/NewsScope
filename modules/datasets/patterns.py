@@ -46,7 +46,7 @@ def PLACE_GENERATE(trigger1, subject1=None, object1=None, time1=None, place1=Non
     # Add more patterns as needed
     return random.choice(PATTERN)
 
-def main():
+if __name__ == "__main__":
     # Example usage
     trigger = "attack"
     subject = "the enemy"
@@ -58,6 +58,3 @@ def main():
     print(OBJECT_GENERATE(trigger))
     print(TIME_GENERATE(trigger))
     print(PLACE_GENERATE(trigger))
-
-if __name__ == "__main__":
-    main()

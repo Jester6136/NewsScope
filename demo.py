@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import gradio as gr
 from modules.model_architeture.mrc_model import MRCQuestionAnswering
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, pipeline, RobertaForQuestionAnswering
 import torch
 from nltk import word_tokenize
+from transformers.models.auto import MODEL_FOR_QUESTION_ANSWERING_MAPPING
 from utils import *
 
 tokenizer_path = "/mnt/wsl/PHYSICALDRIVE0p1/bagsnlp/NewsScope/NewsScope/model/checkpoint-1680"
@@ -160,14 +162,20 @@ def demo_sys(context):
         Object_r = '- Khách thể: ' + Model_infered_Object
         Time_r = '- Thời gian: ' + Model_infered_Time
         Location_r = '- Địa điểm: ' + Model_infered_Location
-        return "\n".join([Subject_r, Trigger_r, Object_r, Time_r, Location_r])
+        return "\n".join([Subject_r, Trigger_r, Object_r, Time_r, Location_r, "##  Loại sự kiện: sắp có  ##"])
         
 if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_checkpoint = "model/checkpoint-1680"
+    model_checkpoint = "/mnt/wsl/PHYSICALDRIVE0p1/bagsnlp/NewsScope/NewsScope/model/checkpoint-1680"
     model = MRCQuestionAnswering.from_pretrained(model_checkpoint)
     model.to(device)
-    text = """Canada công bố kế hoạch loại bỏ trợ cấp cho nhiên liệu hóa thạch. Khí thải phát ra từ một nhà máy lọc dầu ở Fort McMurray, Canada. ( Ảnh: AFP/TTXVN) Ngày 24/7, Canada đã công bố kế hoạch loại bỏ các khoản trợ cấp cho nhiên liệu hóa thạch và trở thành quốc gia đầu tiên trong Nhóm các nền kinh tế phát triển và mới nổi hàng đầu thế giới (G20) thực hiện cam kết năm 2009 nhằm hợp lý hóa và loại bỏ trợ cấp đối với khu vực này. Theo Bộ trưởng Mội trường và Biến đổi khí hậu Steven Guilbeault, các khoản trợ cấp này khuyến khích tiêu dùng lãng phí, làm giảm an ninh năng lượng, cản trở đầu tư vào năng lượng sạch và làm giảm nỗ lực đối phó với biến đổi khí hậu. Ông này khẳng định Canada đang loại bỏ các khoản trợ cấp để sản xuất nhiên liệu hóa thạch ở nước này, ngoại trừ những khoản trợ cấp đó là nhằm giảm lượng khí thải carbon của chính khu vực này. [Công nghệ thu giữ CO2 không thể là "đèn xanh" cho nhiên liệu hóa thạch] Kế hoạch này sẽ áp dụng bằng các biện pháp thuế và phi thuế hiện nay, nhưng Chính phủ chưa hủy bỏ các thỏa thuận trợ cấp nhiều năm đang được thực hiện."""
-    text = align_text(text)
-    items = demo_sys(context = text)
-    print(items)
+    
+    demo = gr.Interface(
+        fn=demo_sys,
+        inputs=gr.inputs.Textbox(lines=5, label="Đầu vào báo: bao gồm title và 5 câu sau, nếu title không dấu chấm thì thêm vào!"),
+        outputs=gr.outputs.Textbox(label="Câu trả lời"),
+        title="NewsScope Dev 1 tuần. Nếu câu trả lời ngố, hãy bấm vào Flag",
+        examples=["""Nữ vận động viên Việt Nam ghi dấu ấn ở giải đua khắc nghiệt nhất thế giới. (Dân trí) - VĐV Thanh Vũ là đại diện duy nhất của Việt Nam có mặt ở Thụy Điển thi đấu giải đua khắc nghiệt Montane Lapland Arctic Ultra 2024 trên tuyết và về đích sau 9 ngày tranh tài liên tục. Giải đua Montane Lapland Arctic Ultra (MLAU) 2024 bắt đầu khởi tranh từ ngày 3/3 và kết thúc vào ngày 13/3. Các vận động viên (VĐV) đăng ký theo các cự ly 185km hoặc 500km với điểm xuất phát tại Overkalix (Thụy Điển). Thanh Vũ (tên đầy đủ là Vũ Phương Thanh) là đại diện duy nhất của Việt Nam nằm trong số 19 VĐV tham dự cự ly 500km. Đây là cuộc đua trail (địa hình), người tham dự được chọn một trong 3 hình thức gồm di chuyển bộ, dắt xe đạp vượt tuyết và hoặc ván trượt tuyết. Ngoài việc phải vượt qua quãng đường rất dài, các VĐV còn phải chịu đựng thử thách khắc nghiệt với thời tiết 1 độ C vào ban ngày và -13 độ C vào ban đêm.""","""Xấp xỉ 32.000 tỷ đồng đổ vào thị trường chứng khoán. (Dân trí) - Mặc dù áp lực chốt lời khiến VN-Index điều chỉnh nhưng dòng tiền hỗ trợ rất mạnh, thanh khoản toàn thị trường được đẩy lên xấp xỉ 32.000 tỷ đồng. Tình trạng chốt lời trong phiên hôm nay (14/3) đã khiến chỉ số chính VN-Index điều chỉnh 6,25 điểm tương ứng 0,49% về còn 1.264,26 điểm. Sàn HoSE có 292 mã giảm giá so với 193 mã tăng. Trong đó, riêng rổ VN30 có 22 mã giảm và chỉ có 4 mã tăng giá. Chỉ số VN30-Index giảm 11,96 điểm tương ứng đánh rơi 0,94%, thiệt hại lớn hơn so với VN-Index. Nhà đầu tư đang tìm cơ hội tại những mã cổ phiếu nhỏ. Bằng chứng là trong khi các mã lớn giảm thì chỉ số VNSML-Index đại diện cho cổ phiếu penny vẫn tăng 13,86 điểm tương ứng 0,93%. Trên sàn Hà Nội, HNX-Index tăng 1,48 điểm tương ứng 0,62% và UPCoM-Index nhích nhẹ 0,09 điểm tương ứng 0,1%. Mặc dù độ rộng sàn HoSE nghiêng về phía các mã giảm giá nhưng thị trường đang được hỗ trợ bởi dòng tiền mạnh. Không một mã nào trên sàn HoSE rơi vào trạng thái giảm sàn phiên hôm nay. Chỉ cần giá cổ phiếu điều chỉnh lập tức đã thu hút tiền chực chờ đổ xô vào mua."""]
+    )
+    
+    demo.launch(server_port=5556)
