@@ -10,22 +10,20 @@ import os
 
 if __name__ == "__main__":
     model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
-    # model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/v1/checkpoint-1680"
-    
     model = MRCQuestionAnswering.from_pretrained(model_path)
-    # print(model)
-    # print(model.config)
+    print(model)
+    print(model.config)
 
     train_dataset, valid_dataset, test_dataset = data_loader.get_dataloader(
         train_path='data/data_processed/train.dataset',
         valid_path='data/data_processed/valid.dataset',
         test_path='data/data_processed/test.dataset',
     )
-
-    training_args = TrainingArguments("cache/v2",
+    
+    training_args = TrainingArguments("cache/v1",
                                       do_train=True,
                                       do_eval=True,
-                                      num_train_epochs=50,
+                                      num_train_epochs=40,
                                       learning_rate=1e-4,
                                       warmup_ratio=0.05,
                                       weight_decay=0.01,
@@ -38,12 +36,13 @@ if __name__ == "__main__":
                                                    'end_positions',
                                                    'span_answer_ids',
                                                    'input_ids',
-                                                   'words_lengths'],
+                                                   'words_lengths',
+                                                   'event_type_labels'],
                                       group_by_length=True,
                                       save_strategy="epoch",
                                       metric_for_best_model='f1',
                                       load_best_model_at_end=True,
-                                      save_total_limit=5,
+                                      save_total_limit=2,
                                       #eval_steps=1,
                                       #evaluation_strategy="steps",
                                       evaluation_strategy="epoch",
@@ -58,4 +57,4 @@ if __name__ == "__main__":
         compute_metrics=data_loader.compute_metrics
     )
 
-    trainer.train(model_path)
+    trainer.train()

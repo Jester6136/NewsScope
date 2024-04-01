@@ -1,9 +1,21 @@
 from transformers.models.roberta.modeling_roberta import *
+from dataclasses import dataclass
 _CHECKPOINT_FOR_DOC = "roberta-base"
 _CONFIG_FOR_DOC = "RobertaConfig"
 _TOKENIZER_FOR_DOC = "RobertaTokenizer"
 
-class MRCQuestionAnswering(RobertaPreTrainedModel):
+@dataclass
+class EventExtractingModelOutput(QuestionAnsweringModelOutput):
+    """
+    Subclass extending QuestionAnsweringModelOutput to include event_logits.
+
+    Args:
+        event_logits (`torch.FloatTensor` of shape `(batch_size, num_events)`):
+            Event logits.
+    """
+    event_logits: torch.FloatTensor = None
+
+class MRCEventExtract(RobertaPreTrainedModel):
     config_class = RobertaConfig
 
     def _reorder_cache(self, past, beam_idx):
@@ -12,13 +24,17 @@ class MRCQuestionAnswering(RobertaPreTrainedModel):
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
     _keys_to_ignore_on_load_missing = [r"position_ids"]
 
-    def __init__(self, config):
+    def __init__(self, config, num_event_labels = 8, drop_prob = None):
         super().__init__(config)
         self.num_labels = config.num_labels
+        self.num_event_labels = num_event_labels
 
         self.roberta = RobertaModel(config, add_pooling_layer=False)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
-        
+        # 8 basic classes
+
+        # ["Business","Conflict","Contact","Justice","Life","Movement","Personnel","Transaction"]
+        self.event_type_output = nn.Linear(config.hidden_size, self.num_event_labels)
         self.init_weights()
 
     def forward(
@@ -35,6 +51,7 @@ class MRCQuestionAnswering(RobertaPreTrainedModel):
             start_positions=None,
             end_positions=None,
             span_answer_ids=None,
+            event_type_labels=None,
             output_attentions=None,
             output_hidden_states=None,
             return_dict=None,
@@ -66,6 +83,8 @@ class MRCQuestionAnswering(RobertaPreTrainedModel):
         sequence_output = outputs[0]
 
         context_embedding = sequence_output
+
+        event_logits = event_type_output(context_embedding)
 
         # Compute align word sub_word matrix
         batch_size = input_ids.shape[0]
@@ -101,16 +120,27 @@ class MRCQuestionAnswering(RobertaPreTrainedModel):
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
-            total_loss = (start_loss + end_loss) / 2
+
+            event_classify_loss = loss_fct(event_logits.view(-1, self.num_event_labels), labels.view(-1)) if event_type_labels is not None else None
+
+            print(f"start_loss: {start_loss}, end_loss: {end_loss}, event_classify_loss: {event_classify_loss}")
+            total_loss = (start_loss + end_loss) / 2 + event_classify_loss
 
         if not return_dict:
-            output = (start_logits, end_logits) + outputs[2:]
+            output = (start_logits, end_logits, event_logits) + outputs[2:]
             return ((total_loss,) + output) if total_loss is not None else output
 
-        return QuestionAnsweringModelOutput(
+        return EventExtractingModelOutput(
             loss=total_loss,
             start_logits=start_logits,
             end_logits=end_logits,
+            event_logits =event_logits,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+if __name__ == "__main__":
+    # Example usage
+    model_path = r"D:\NewsScope\model"
+    model = MRCEventExtract.from_pretrained(model_path, num_event_labels = 8)
+    print(model)
