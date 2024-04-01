@@ -84,7 +84,7 @@ class MRCEventExtract(RobertaPreTrainedModel):
 
         context_embedding = sequence_output
 
-        event_logits = event_type_output(context_embedding)
+        event_logits = self.event_type_output(context_embedding)
 
         # Compute align word sub_word matrix
         batch_size = input_ids.shape[0]
@@ -121,10 +121,13 @@ class MRCEventExtract(RobertaPreTrainedModel):
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
 
-            event_classify_loss = loss_fct(event_logits.view(-1, self.num_event_labels), labels.view(-1)) if event_type_labels is not None else None
-
-            print(f"start_loss: {start_loss}, end_loss: {end_loss}, event_classify_loss: {event_classify_loss}")
-            total_loss = (start_loss + end_loss) / 2 + event_classify_loss
+            
+            if event_type_labels is not None:
+                event_classify_loss = loss_fct(event_logits.view(-1, self.num_event_labels), event_type_labels.view(-1)) 
+                total_loss = (start_loss + end_loss) / 2 + event_classify_loss
+            else: 
+                total_loss = (start_loss + end_loss) / 2
+            print(f"total_loss: {total_loss} start_loss: {start_loss}, end_loss: {end_loss}, event_classify_loss: {event_classify_loss}")
 
         if not return_dict:
             output = (start_logits, end_logits, event_logits) + outputs[2:]

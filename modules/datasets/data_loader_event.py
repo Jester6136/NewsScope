@@ -89,7 +89,7 @@ def data_collator(samples):
     answer_end = collate_tokens([torch.tensor([item['end_idx']]) for item in samples], pad_idx=0)
     span_answer_ids = collate_tokens([torch.tensor(item['span_answer_ids']) for item in samples],
                                      pad_idx=-100)
-    event_type_labels = [torch.tensor(item['event_type_labels']) for item in samples]
+    event_type_labels = torch.stack([torch.tensor(item['event_type_labels']) for item in samples])
 
     batch_samples = {
         'input_ids': input_ids,

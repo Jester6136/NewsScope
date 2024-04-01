@@ -1,7 +1,7 @@
 from transformers import TrainingArguments
-from modules.model_architeture.mrc_model import MRCQuestionAnswering
+from modules.model_architeture.event_model import MRCEventExtract
 from transformers import Trainer
-from modules.datasets import data_loader
+from modules.datasets import data_loader_event
 import numpy as np
 from datasets import load_metric
 import os
@@ -9,15 +9,15 @@ import os
 #os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 if __name__ == "__main__":
-    model_path = r"/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
-    model = MRCQuestionAnswering.from_pretrained(model_path)
+    model_path = r"nguyenvulebinh/vi-mrc-large"
+    model = MRCEventExtract.from_pretrained(model_path)
     print(model)
     print(model.config)
 
-    train_dataset, valid_dataset, test_dataset = data_loader.get_dataloader(
-        train_path='data/data_processed/train.dataset',
-        valid_path='data/data_processed/valid.dataset',
-        test_path='data/data_processed/test.dataset',
+    train_dataset, valid_dataset, test_dataset = data_loader_event.get_dataloader(
+        train_path='data1/train.dataset',
+        valid_path='data1/valid.dataset',
+        test_path='data1/test.dataset',
     )
     
     training_args = TrainingArguments("cache/v1",
@@ -53,8 +53,8 @@ if __name__ == "__main__":
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
-        data_collator=data_loader.data_collator,
-        compute_metrics=data_loader.compute_metrics
+        data_collator=data_loader_event.data_collator,
+        compute_metrics=data_loader_event.compute_metrics
     )
 
     trainer.train()
