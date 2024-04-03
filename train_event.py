@@ -40,7 +40,7 @@ if __name__ == "__main__":
                                                    'event_type_labels'],
                                       group_by_length=True,
                                       save_strategy="epoch",
-                                      metric_for_best_model='f1',
+                                      metric_for_best_model='task1_f1',
                                       load_best_model_at_end=True,
                                       save_total_limit=2,
                                       #eval_steps=1,

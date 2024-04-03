@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 import torch
 import numpy as np
 from nltk import word_tokenize
-import evaluate
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import nltk
 nltk.download('punkt')
@@ -13,8 +12,8 @@ tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 
 def compute_metrics(eval_pred):
-    metric = evaluate.load("squad", cache_dir='./log/metric')
-    f1_metric = evaluate.load("f1", cache_dir='./log/metric')
+    metric = datasets.load_metric("squad", cache_dir='./log/metric')
+    f1_metric = datasets.load_metric("f1", cache_dir='./log/metric')
     logits_all, labels_all = eval_pred
     labels = labels_all
     logits = logits_all
@@ -43,8 +42,8 @@ def compute_metrics(eval_pred):
     
     labels_2 = labels_all[-1]
     preds = np.argmax(logits_all[2], axis=1)
-    task2 = f1_metric.compute(predictions=preds, references=labels_2)
-    return {"task1": task1, "task2": task2}
+    task2 = f1_metric.compute(predictions=preds, references=labels_2, average='weighted')
+    return {"task1_exact_match": task1["exact_match"],"task1_f1": task1["f1"], "task2_f1": task2["f1"]}
 
 
 def data_collator(samples):
