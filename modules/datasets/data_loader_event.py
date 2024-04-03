@@ -4,17 +4,20 @@ from torch.utils.data import DataLoader
 import torch
 import numpy as np
 from nltk import word_tokenize
+import evaluate
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import nltk
 nltk.download('punkt')
-model_path = "/data2/cmdir/home/ioit104/aiavn/NewsScope/cache/mrc_model"
+model_path = "nguyenvulebinh/vi-mrc-large"
 tokenizer = AutoTokenizer.from_pretrained(model_path)
 
 
 def compute_metrics(eval_pred):
-    metric = datasets.load_metric("squad", cache_dir='./log/metric')
-    logits, labels_all = eval_pred
+    metric = evaluate.load("squad", cache_dir='./log/metric')
+    f1_metric = evaluate.load("f1", cache_dir='./log/metric')
+    logits_all, labels_all = eval_pred
     labels = labels_all
+    logits = logits_all
     logits = list(zip(logits[0], logits[1]))
     labels, span_ids, samples_input_ids, word_lengths = list(zip(labels[0], labels[1])), labels[2], labels[3], labels[4]
     predictions = []
@@ -39,17 +42,8 @@ def compute_metrics(eval_pred):
     task1 = metric.compute(predictions=predictions, references=references)
     
     labels_2 = labels_all[-1]
-    preds = logits[2].argmax(-1)
-    accuracy = accuracy_score(labels, preds)
-    precision = precision_score(labels, preds, average='weighted')
-    recall = recall_score(labels, preds, average='weighted')
-    f1 = f1_score(labels, preds, average='weighted')
-    task2 = {
-        'accuracy': accuracy,
-        'precision': precision,
-        'recall': recall,
-        'f1': f1
-    }
+    preds = np.argmax(logits_all[2], axis=1)
+    task2 = f1_metric.compute(predictions=preds, references=labels_2)
     return {"task1": task1, "task2": task2}
 
 

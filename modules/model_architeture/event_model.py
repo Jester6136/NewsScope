@@ -29,8 +29,9 @@ class MRCEventExtract(RobertaPreTrainedModel):
         self.num_labels = config.num_labels
         self.num_event_labels = num_event_labels
 
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.roberta = RobertaModel(config)
         self.qa_outputs = nn.Linear(config.hidden_size, config.num_labels)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
         # 8 basic classes
 
         # ["Business","Conflict","Contact","Justice","Life","Movement","Personnel","Transaction"]
@@ -68,7 +69,7 @@ class MRCEventExtract(RobertaPreTrainedModel):
         """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        outputs = self.roberta(
+        features = self.roberta(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -80,11 +81,11 @@ class MRCEventExtract(RobertaPreTrainedModel):
             return_dict=return_dict,
         )
 
-        sequence_output = outputs[0]
-
+        sequence_output = features["last_hidden_state"]
+        pooler_output = features["pooler_output"]
         context_embedding = sequence_output
-
-        event_logits = self.event_type_output(context_embedding)
+        pooler_output = self.dropout(pooler_output)
+        event_logits = self.event_type_output(pooler_output)
 
         # Compute align word sub_word matrix
         batch_size = input_ids.shape[0]
@@ -120,27 +121,28 @@ class MRCEventExtract(RobertaPreTrainedModel):
             loss_fct = CrossEntropyLoss(ignore_index=ignored_index)
             start_loss = loss_fct(start_logits, start_positions)
             end_loss = loss_fct(end_logits, end_positions)
-
             
             if event_type_labels is not None:
-                event_classify_loss = loss_fct(event_logits.view(-1, self.num_event_labels), event_type_labels.view(-1)) 
+                event_classify_loss = loss_fct(event_logits.view(-1, self.num_event_labels), event_type_labels.view(-1))
                 total_loss = (start_loss + end_loss) / 2 + event_classify_loss
-            else: 
+            else:
                 total_loss = (start_loss + end_loss) / 2
             print(f"total_loss: {total_loss} start_loss: {start_loss}, end_loss: {end_loss}, event_classify_loss: {event_classify_loss}")
 
+
         if not return_dict:
-            output = (start_logits, end_logits, event_logits) + outputs[2:]
+            output = (start_logits, end_logits, event_logits) + sequence_output[2:]
             return ((total_loss,) + output) if total_loss is not None else output
 
         return EventExtractingModelOutput(
             loss=total_loss,
             start_logits=start_logits,
             end_logits=end_logits,
-            event_logits =event_logits,
-            hidden_states=outputs.hidden_states,
-            attentions=outputs.attentions,
+            event_logits=event_logits,
+            hidden_states=features.hidden_states,
+            attentions=features.attentions,
         )
+
 
 if __name__ == "__main__":
     # Example usage

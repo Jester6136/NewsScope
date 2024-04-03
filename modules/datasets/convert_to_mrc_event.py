@@ -10,11 +10,11 @@ import argparse
 import nltk
 nltk.download('punkt')
 
-ALLOW_TRIGGER1 = True
-ALLOW_TRIGGER2 = False
+# ALLOW_TRIGGER1 = True
+# ALLOW_TRIGGER2 = False
 
-# ALLOW_TRIGGER1 = False
-# ALLOW_TRIGGER2 = True
+ALLOW_TRIGGER1 = False
+ALLOW_TRIGGER2 = True
 
 def convert_to_squad(file_path):
     raw_data = []
@@ -181,4 +181,5 @@ if __name__ == "__main__":
             file.write("{}\n".format(json.dumps(item, ensure_ascii=False)))
 
     logger.info("Total: {} samples".format(len(squad)))
+
 
