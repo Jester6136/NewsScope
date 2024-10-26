@@ -1,172 +1,163 @@
 # -*- coding: utf-8 -*-
-from modules.model_architeture.mrc_model import MRCQuestionAnswering
+import logging
 from transformers import AutoTokenizer
+from modules.model_architeture.mrc_model import MRCQuestionAnswering
 import torch
 from nltk import word_tokenize
-from utils import *
+import re
+import unicodedata
 
-THRESH = 0.7
-tokenizer_path = "model/checkpoint-1248-v3"
-tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,  # Change to DEBUG for more detailed output
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
-def tokenize_function(example):
-    global tokenizer  # Use the global tokenizer
-    question_word = word_tokenize(example["question"])
-    context_word = word_tokenize(example["context"])
-
-    question_sub_words_ids = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(w)) for w in question_word]
-    context_sub_words_ids = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(w)) for w in context_word]
-    valid = True
-    if len([j for i in question_sub_words_ids + context_sub_words_ids for j in
-            i]) > tokenizer.max_len_single_sentence - 1:
-        valid = False
-
-    question_sub_words_ids = [[tokenizer.bos_token_id]] + question_sub_words_ids + [[tokenizer.eos_token_id]]
-    context_sub_words_ids = context_sub_words_ids + [[tokenizer.eos_token_id]]
-
-    input_ids = [j for i in question_sub_words_ids + context_sub_words_ids for j in i]  
-    if len(input_ids) > tokenizer.max_len_single_sentence + 2:
-        valid = False
-
-    words_lengths = [len(item) for item in question_sub_words_ids + context_sub_words_ids]
-
-    return {
-        "input_ids": input_ids,
-        "words_lengths": words_lengths,
-        "valid": valid
+class MRCSystem:
+    dict_map = {
+        "òa": "oà", "Òa": "Oà", "ÒA": "OÀ", "óa": "oá", "Óa": "Oá", "ÓA": "OÁ",
+        "ỏa": "oả", "Ỏa": "Oả", "ỎA": "OẢ", "õa": "oã", "Õa": "Oã", "ÕA": "OÃ",
+        "ọa": "oạ", "Ọa": "Oạ", "ỌA": "OẠ", "òe": "oè", "Òe": "Oè", "ÒE": "OÈ",
+        "óe": "oé", "Óe": "Oé", "ÓE": "OÉ", "ỏe": "oẻ", "Ỏe": "Oẻ", "ỎE": "OẺ",
+        "õe": "oẽ", "Õe": "Oẽ", "ÕE": "OẼ", "ọe": "oẹ", "Ọe": "Oẹ", "ỌE": "OẸ",
+        "ùy": "uỳ", "Ùy": "Uỳ", "ÙY": "UỲ", "úy": "uý", "Úy": "Uý", "ÚY": "UÝ",
+        "ủy": "uỷ", "Ủy": "Uỷ", "ỦY": "UỶ", "ũy": "uỹ", "Ũy": "Uỹ", "ŨY": "UỸ",
+        "ụy": "uỵ", "Ụy": "Uỵ", "ỤY": "UỴ"
     }
 
-def data_collator(samples):
-    global tokenizer  # Use the global tokenizer
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if len(samples) == 0:
-        return {}
+    def __init__(self, model_checkpoint, threshold=0.75):
+        logger.info("Initializing MRCSystem...")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+        self.model = MRCQuestionAnswering.from_pretrained(model_checkpoint)
+        self.model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+        self.threshold = threshold
+        logger.info("MRCSystem initialized with model checkpoint: %s", model_checkpoint)
 
-    def collate_tokens(values, pad_idx, eos_idx=None, left_pad=False, move_eos_to_beginning=False):
-        """Convert a list of 1d tensors into a padded 2d tensor."""
-        size = max(v.size(0) for v in values)
-        res = values[0].new(len(values), size).fill_(pad_idx)
+    def add_space_between_words(self, text):
+        logger.debug("Adding space between words...")
+        text = unicodedata.normalize('NFKC', text)
+        pattern = r'(?<=\w)[.](?=\s*[A-Z])|(?<=[a-z])[.](?=\s*[A-Z])'
+        modified_text = re.sub(pattern, '. ', text)
+        modified_text = re.sub(r'\s+', ' ', modified_text)
+        return modified_text
 
-        def copy_tensor(src, dst):
-            assert dst.numel() == src.numel()
-            if move_eos_to_beginning:
-                assert src[-1] == eos_idx
-                dst[0] = eos_idx
-                dst[1:] = src[:-1]
-            else:
-                dst.copy_(src)
+    def align_text(self, text):
+        logger.debug("Aligning text...")
+        for i, j in self.dict_map.items():
+            text = text.replace(i, j)
+        return self.add_space_between_words(text)
 
-        for i, v in enumerate(values):
-            copy_tensor(v, res[i][size - len(v):] if left_pad else res[i][:len(v)])
-        return res
+    def tokenize_function(self, example):
+        question_word = word_tokenize(example["question"])
+        context_word = word_tokenize(example["context"])
 
-    input_ids = collate_tokens([torch.tensor(item['input_ids']).to(device) for item in samples], pad_idx=tokenizer.pad_token_id)
-    attention_mask = torch.zeros_like(input_ids).to(device)
-    for i in range(len(samples)):
-        attention_mask[i][:len(samples[i]['input_ids'])] = 1
-    words_lengths = collate_tokens([torch.tensor(item['words_lengths']).to(device) for item in samples], pad_idx=0)
+        question_sub_words_ids = [self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(w)) for w in question_word]
+        context_sub_words_ids = [self.tokenizer.convert_tokens_to_ids(self.tokenizer.tokenize(w)) for w in context_word]
+        valid = True
+        if len([j for i in question_sub_words_ids + context_sub_words_ids for j in i]) > self.tokenizer.max_len_single_sentence - 1:
+            valid = False
 
-    batch_samples = {
-        'input_ids': input_ids,
-        'attention_mask': attention_mask,
-        'words_lengths': words_lengths,
-    }
+        question_sub_words_ids = [[self.tokenizer.bos_token_id]] + question_sub_words_ids + [[self.tokenizer.eos_token_id]]
+        context_sub_words_ids = context_sub_words_ids + [[self.tokenizer.eos_token_id]]
 
-    return batch_samples
+        input_ids = [j for i in question_sub_words_ids + context_sub_words_ids for j in i]
+        if len(input_ids) > self.tokenizer.max_len_single_sentence + 2:
+            valid = False
 
-def extract_answer(inputs, outputs):
-    global tokenizer  # Use the global tokenizer
-    plain_result = []
-    for sample_input, start_logit, end_logit in zip(inputs, outputs.start_logits, outputs.end_logits):
-        sample_words_length = sample_input['words_lengths']
-        input_ids = sample_input['input_ids']
-        # Get the most likely beginning of answer with the argmax of the score
-        answer_start = sum(sample_words_length[:torch.argmax(start_logit)])
-        # Get the most likely end of answer with the argmax of the score
-        answer_end = sum(sample_words_length[:torch.argmax(end_logit) + 1])
+        words_lengths = [len(item) for item in question_sub_words_ids + context_sub_words_ids]
 
-        if answer_start <= answer_end:
-            answer = tokenizer.convert_tokens_to_string(
-                tokenizer.convert_ids_to_tokens(input_ids[answer_start:answer_end]))
-            if answer == tokenizer.bos_token:
-                answer = ''
-        else:
-            answer = ''
-
-        score_start = torch.max(torch.softmax(start_logit, dim=-1)).cpu().detach().numpy().tolist()
-        score_end = torch.max(torch.softmax(end_logit, dim=-1)).cpu().detach().numpy().tolist()
-        plain_result.append({
-            "answer": answer,
-            "score_start": score_start,
-            "score_end": score_end
-        })
-    return plain_result
-
-
-def qa_mrc(questions,context):
-    global tokenizer  # Use the global tokenizer
-    inputs = []
-    for question in questions:
-        QA_input = {
-            'question': question,
-            'context': align_text(context)
+        return {
+            "input_ids": input_ids,
+            "words_lengths": words_lengths,
+            "valid": valid
         }
-        inputs.append(tokenize_function(QA_input))
-    inputs_ids = data_collator(inputs)
-    inputs_ids = {key: value.to(device) for key, value in inputs_ids.items()}
-    outputs = model(**inputs_ids)
-    answer = extract_answer(inputs, outputs)
-    return (answer)
 
-def demo_sys(context):
-    global tokenizer  # Use the global tokenizer
-    trigger_o = None
-    if not trigger_o:
-        trigger_a = qa_mrc(["What is the main action in the text?"], context)
+    def data_collator(self, samples):
+        logger.info("Collating data samples...")
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if len(samples) == 0:
+            return {}
+
+        def collate_tokens(values, pad_idx):
+            size = max(v.size(0) for v in values)
+            res = values[0].new(len(values), size).fill_(pad_idx)
+            for i, v in enumerate(values):
+                res[i][:len(v)] = v
+            return res
+
+        input_ids = collate_tokens([torch.tensor(item['input_ids']).to(device) for item in samples], pad_idx=self.tokenizer.pad_token_id)
+        attention_mask = torch.zeros_like(input_ids).to(device)
+        for i in range(len(samples)):
+            attention_mask[i][:len(samples[i]['input_ids'])] = 1
+        words_lengths = collate_tokens([torch.tensor(item['words_lengths']).to(device) for item in samples], pad_idx=0)
+
+        return {
+            'input_ids': input_ids,
+            'attention_mask': attention_mask,
+            'words_lengths': words_lengths,
+        }
+
+    def extract_answer(self, inputs, outputs):
+        plain_result = []
+        for sample_input, start_logit, end_logit in zip(inputs, outputs.start_logits, outputs.end_logits):
+            sample_words_length = sample_input['words_lengths']
+            input_ids = sample_input['input_ids']
+
+            answer_start = sum(sample_words_length[:torch.argmax(start_logit)])
+            answer_end = sum(sample_words_length[:torch.argmax(end_logit) + 1])
+
+            if answer_start <= answer_end:
+                answer = self.tokenizer.convert_tokens_to_string(
+                    self.tokenizer.convert_ids_to_tokens(input_ids[answer_start:answer_end]))
+                answer = '' if answer == self.tokenizer.bos_token else answer
+            else:
+                answer = ''
+
+            score_start = torch.max(torch.softmax(start_logit, dim=-1)).cpu().detach().numpy().tolist()
+            score_end = torch.max(torch.softmax(end_logit, dim=-1)).cpu().detach().numpy().tolist()
+            plain_result.append({
+                "answer": answer,
+                "score_start": score_start,
+                "score_end": score_end
+            })
+        return plain_result
+
+    def qa_mrc(self, questions, context):
+        inputs = [self.tokenize_function({'question': question, 'context': self.align_text(context)}) for question in questions]
+        inputs_ids = self.data_collator(inputs)
+        inputs_ids = {key: value.to(self.model.device) for key, value in inputs_ids.items()}
+        outputs = self.model(**inputs_ids)
+        return self.extract_answer(inputs, outputs)
+
+    def demo_sys(self, context):
+        logger.info("Running demo system...")
+        trigger_a = self.qa_mrc(["What is the main action in the text?"], context)
         trigger = trigger_a[0]["answer"]
-    else:
-        trigger = trigger_o
-    if not trigger:
-        return "Have no trigger"
-    else:
-        Object_q = f"What was {trigger} affected ?"
-        Subject_q = f"Who or what was involved in {trigger} ?"
-        Time_q = f"When did the {trigger} happen ?"
-        Location_q = f"Where did the {trigger} take place ?"
 
+        if not trigger:
+            logger.warning("No trigger found.")
+            return "Have no trigger"
         
-        out_model = qa_mrc([Object_q,Subject_q,Time_q,Location_q], context)
-        q,w,e,r = out_model[0],out_model[1],out_model[2],out_model[3]
+        questions = [
+            f"What was {trigger} affected ?", f"Who or what was involved in {trigger} ?",
+            f"When did the {trigger} happen ?", f"Where did the {trigger} take place ?"
+        ]
+        answers = self.qa_mrc(questions, context)
         
-        if q['score_start'] < THRESH:
-            Model_infered_Object = "Not clear!"
-        else:
-            Model_infered_Object = q["answer"] if q["answer"]!="" else "Not found!"
-        if w['score_start'] < THRESH:
-            Model_infered_Subject = "Not clear!"
-        else:
-            Model_infered_Subject = w["answer"] if w["answer"]!="" else "Not found!"
-        if e['score_start'] < THRESH:
-            Model_infered_Time = "Not clear!"
-        else:
-            Model_infered_Time = e["answer"] if e["answer"]!="" else "Not found!"
-        if r['score_start'] < THRESH:
-            Model_infered_Location = "Not clear!"
-        else:
-            Model_infered_Location = r["answer"] if r["answer"]!="" else "Not found!"
+        events = {
+            "subject": answers[1]["answer"] if answers[1]["score_start"] >= self.threshold else None,
+            "trigger": trigger,
+            "object": answers[0]["answer"] if answers[0]["score_start"] >= self.threshold else None,
+            "time": answers[2]["answer"] if answers[2]["score_start"] >= self.threshold else None,
+            "place": answers[3]["answer"] if answers[3]["score_start"] >= self.threshold else None
+        }
+        logger.info("Demo system completed.")
+        return events, context
 
-        Subject_r = '- Chủ thể: ' + Model_infered_Subject
-        Trigger_r = '- Action: ' + trigger
-        Object_r = '- Khách thể: ' + Model_infered_Object
-        Time_r = '- Thời gian: ' + Model_infered_Time
-        Location_r = '- Địa điểm: ' + Model_infered_Location
-        return "\n".join([Subject_r, Trigger_r, Object_r, Time_r, Location_r])
-        
 if __name__ == "__main__":
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model_checkpoint = "model/checkpoint-1248-v3"
-    model = MRCQuestionAnswering.from_pretrained(model_checkpoint)
-    model.to(device)
-    text = """Canada công bố kế hoạch loại bỏ trợ cấp cho nhiên liệu hóa thạch. Khí thải phát ra từ một nhà máy lọc dầu ở Fort McMurray, Canada. ( Ảnh: AFP/TTXVN) Ngày 24/7, Canada đã công bố kế hoạch loại bỏ các khoản trợ cấp cho nhiên liệu hóa thạch và trở thành quốc gia đầu tiên trong Nhóm các nền kinh tế phát triển và mới nổi hàng đầu thế giới (G20) thực hiện cam kết năm 2009 nhằm hợp lý hóa và loại bỏ trợ cấp đối với khu vực này. Theo Bộ trưởng Mội trường và Biến đổi khí hậu Steven Guilbeault, các khoản trợ cấp này khuyến khích tiêu dùng lãng phí, làm giảm an ninh năng lượng, cản trở đầu tư vào năng lượng sạch và làm giảm nỗ lực đối phó với biến đổi khí hậu. Ông này khẳng định Canada đang loại bỏ các khoản trợ cấp để sản xuất nhiên liệu hóa thạch ở nước này, ngoại trừ những khoản trợ cấp đó là nhằm giảm lượng khí thải carbon của chính khu vực này. [Công nghệ thu giữ CO2 không thể là "đèn xanh" cho nhiên liệu hóa thạch] Kế hoạch này sẽ áp dụng bằng các biện pháp thuế và phi thuế hiện nay, nhưng Chính phủ chưa hủy bỏ các thỏa thuận trợ cấp nhiều năm đang được thực hiện."""
-    items = demo_sys(context = text)
+    mrc_system = MRCSystem(model_checkpoint="jester6136/NewsScope")
+    text = """Tàu đổ bộ Mỹ vĩnh viễn chìm vào giấc ngủ đông trên mặt trăng. Tàu đổ bộ không người lái của Mỹ, do công ty tư nhân Intuitive Machines vận hành và có tên Odysseus, đã trở thành tàu thương mại đầu tiên kết thúc số phận trên mặt trăng sau sự kiện đổ bộ lịch sử kể từ thời Apollo. 00:00 Previous Play Next 00:00 / 01:43 Mute Settings Fullscreen Copy video url Play / Pause Mute / Unmute Report a problem Language Share Vidverto Player Intuitive Machines hy vọng con tàu có thể "thức giấc" nếu tiếp nhận được ánh sáng mặt trời như trường hợp của tàu đổ bộ SLIM Nhật Bản hồi tháng 1."""
+    items, context = mrc_system.demo_sys(context=text)
     print(items)
